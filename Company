@@ -1,0 +1,106 @@
+# ==============================================================================
+# ASSIGNMENT: CLEANED COMPANY EMPLOYEE DATASET (DAY 11)
+# ==============================================================================
+
+import pandas as pd
+import numpy as np
+
+# ------------------------------------------------------------------------------
+# STEP 1: Load and Inspect the Messy Dataset
+# ------------------------------------------------------------------------------
+# Note: Ensure your messy company CSV file is uploaded to your Colab session.
+try:
+    df = pd.read_csv('company_employees.csv')
+    print("Dataset loaded successfully!\n")
+except FileNotFoundError:
+    print("Warning: 'company_employees.csv' not found. Creating a messy mock dataset...")
+    # Generating corrupted company mock data matching typical cleaning assignment fields
+    np.random.seed(42)
+    mock_data = {
+        'Employee_ID': ['EMP01', 'EMP02', 'EMP03', 'EMP04', 'EMP05', 'EMP02', 'EMP06', 'EMP07', 'EMP08', 'EMP09'],
+        'Full_Name': ['Arjun Nair', 'Priya Sharma', ' Rohan Das', 'Ananya Iyer', 'Vikram Singh', 'Priya Sharma', 'Sneha Rao', 'Kabir Mehta', 'Meera Joshi', 'Amit Verma'],
+        'Department': ['IT', 'HR', 'Finance', 'IT', 'Marketing', 'HR', np.nan, 'Finance', 'Marketing', 'IT'],
+        'Salary': [75000, 62000, np.nan, 80000, 55000, 62000, 48000, 95000, np.nan, 72000],
+        'Join_Date': ['2021-03-15', '2019-11-01', '2022/05/20', '2020-08-12', '2023-01-10', '2019-11-01', '2021-07-19', '2018-04-23', '2022-09-05', 'Pending'],
+        'Is_Remote': ['Yes', 'No', 'yes', 'No', 'NO', 'No', 'Yes', 'no', 'Yes', 'Yes']
+    }
+    df = pd.DataFrame(mock_data)
+
+# Retain original copy for final structural comparison
+df_original = df.copy()
+
+print("--- MESSY DATASET INITIAL PREVIEW ---")
+print(df.head(10), "\n")
+
+# ------------------------------------------------------------------------------
+# STEP 2: Audit and Quantify Corruption Before Cleaning
+# ------------------------------------------------------------------------------
+print("--- PRE-CLEANING METRIC AUDIT ---")
+print(f"Initial Row Count: {df.shape[0]}")
+print(f"Initial Column Count: {df.shape[1]}")
+
+print("\nMissing Values Count per Column:")
+print(df.isnull().sum())
+
+print("\nDuplicate Row Count (Total Match):")
+print(df.duplicated().sum())
+
+print("\nDuplicate ID Count (Key Constraints):")
+print(df.duplicated(subset=['Employee_ID']).sum())
+
+# ------------------------------------------------------------------------------
+# STEP 3: Execute Targeted Data Cleaning Actions
+# ------------------------------------------------------------------------------
+
+# 1. Strip Hidden Whitespace from Text Fields
+# Cleans accidental paddings like " Rohan Das" to ensure accurate comparisons
+string_cols = df.select_dtypes(include=['object']).columns
+for col in string_cols:
+    df[col] = df[col].astype(str).str.strip()
+
+# 2. Resolve Duplicate Records
+# Drops identical row entries while keeping the first occurrence intact
+df = df.drop_duplicates(keep='first')
+
+# 3. Structural Standardisation of Inconsistent Categories
+# Harmonizes ['Yes', 'No', 'yes', 'NO'] variants to uniform uppercase strings
+if 'Is_Remote' in df.columns:
+    df['Is_Remote'] = df['Is_Remote'].str.upper()
+
+# 4. Handle Categorical Missing Values (Mode Imputation)
+# Replaces empty Department slots with the most frequent department value
+if df['Department'].isnull().any():
+    dept_mode = df['Department'].mode()[0]
+    df['Department'] = df['Department'].fillna(dept_mode)
+
+# 5. Handle Numerical Missing Values (Median Imputation)
+# Uses median rather than mean to shield calculations from salary outlier bias
+if df['Salary'].isnull().any():
+    salary_median = df['Salary'].median()
+    df['Salary'] = df['Salary'].fillna(salary_median)
+
+# 6. Parse and Repair DateTime Inconsistencies
+# Coerces messy date text into standard datetime format, setting unparseable text ("Pending") to NaT
+if 'Join_Date' in df.columns:
+    df['Join_Date'] = pd.to_datetime(df['Join_Date'], errors='coerce')
+    # Use Forward Fill (ffill) to plug remaining empty dates chronologically
+    df['Join_Date'] = df['Join_Date'].ffill()
+
+# ------------------------------------------------------------------------------
+# STEP 4: Post-Cleaning Verification and Comparison
+# ------------------------------------------------------------------------------
+print("\n--- POST-CLEANING FINAL VERIFICATION ---")
+print(f"Cleaned Row Count: {df.shape[0]}")
+print("Remaining Missing Values per Column:\n", df.isnull().sum())
+
+print("\n--- CONDITION COMPARISON (BEFORE vs AFTER) ---")
+print(f"Rows Saved/Deduplicated : {df_original.shape[0] - df.shape[0]}")
+print(f"Missing Values Resolved : {df_original.isnull().sum().sum() - df.isnull().sum().sum()}")
+print(f"Final Column Data Types :\n{df.dtypes}")
+
+# ------------------------------------------------------------------------------
+# STEP 5: Export the Cleaned Dataset
+# ------------------------------------------------------------------------------
+output_file = 'cleaned_company_employees.csv'
+df.to_csv(output_file, index=False)
+print(f"\nSuccess: The final cleaned file was written to disk as: '{output_file}'")
